@@ -1,17 +1,17 @@
+using System;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
     [SerializeField] private float _acceleration = 10f;
     [SerializeField] private float _jumpForce = 100f;
-    [SerializeField] private float _jumpTime = 2f;
     [SerializeField] private float _rotationFactor = 5f;
 
     private bool _isGrounded;
+    private bool _shouldJump;
     private Rigidbody _rb;
     private Vector3 _playerInput;
     private Vector2 _mouseInput;
-    private float _jumpTimer;
 
 
     /// <summary>
@@ -20,7 +20,6 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
-        _jumpTimer = _jumpTime;
     }
 
     /// <summary>>
@@ -28,9 +27,28 @@ public class PlayerController : MonoBehaviour
     /// </summary>>
     private void Update()
     {
-        _playerInput = new Vector3(Input.GetAxis("Horizontal"), 0f, Input.GetAxis("Vertical"));
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Debug.LogWarning("Quitting on ESCAPE");
+            Application.Quit();
+        }
+        GetPlayerInput();
+        CheckForJump();
+        RotateYAxis();
+    }
+
+    private void CheckForJump()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            _shouldJump = true;
+        }
+    }
+
+    private void GetPlayerInput()
+    {
+        _playerInput = new Vector3(Input.GetAxis("Horizontal"), 0f, Input.GetAxis("Vertical")).normalized;
         _mouseInput = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
-        RotateCamera();
     }
 
     /// <summary>
@@ -38,8 +56,8 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void FixedUpdate()
     {
-        IsGrounded();
         PlayerMove();
+        IsGrounded();
         PlayerJump();
     }
 
@@ -60,31 +78,32 @@ public class PlayerController : MonoBehaviour
 
     private void PlayerMove()
     {
-        Vector3 moveDir = transform.TransformDirection(_playerInput) * _acceleration;
+        Vector3 curVel = _rb.velocity;
+        Vector3 moveDir = _rb.transform.TransformDirection(_playerInput) * _acceleration * Time.fixedDeltaTime;
 
-        var currSpeed = _rb.velocity;
-        _rb.velocity = new Vector3(moveDir.x, _rb.velocity.y, moveDir.z);
-        // if (_rb.velocity.sqrMagnitude > 10)
-        // {
-        //     _rb.velocity = currSpeed;
-        // }
+        if (!_isGrounded)
+        {
+            moveDir *= 0.5f;
+        }
+        curVel += moveDir;
+
+        _rb.velocity = new Vector3(curVel.x, _rb.velocity.y, curVel.z);
     }
 
-    private void RotateCamera()
+    private void RotateYAxis()
     {
-        transform.Rotate(transform.up, _mouseInput.x * _rotationFactor);
+
+        Quaternion camRot = Quaternion.Euler(0f, _mouseInput.x * _rotationFactor * Time.fixedDeltaTime, 0f);
+        _rb.MoveRotation(_rb.rotation * camRot);
     }
 
     private void PlayerJump()
     {
-        if (Input.GetKey(KeyCode.Space))
+        if (_isGrounded && _shouldJump)
         {
-            if(_isGrounded || _jumpTimer > 0f)
-            {
-                _rb.AddForce(transform.up * _jumpForce);
-                _jumpTimer -= 0.1f * Time.fixedDeltaTime;
-            }
+            _rb.AddForce(transform.up * _jumpForce, ForceMode.Impulse);
         }
+        _shouldJump = false;
     }
 
     /// <summary>
